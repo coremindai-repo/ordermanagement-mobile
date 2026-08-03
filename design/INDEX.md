@@ -5,12 +5,13 @@ Source of truth for mobile screen design. These are real Figma exports
 deleted from this repo if any remain). Filenames match what's actually
 in each folder — keep this file in sync if screens are renamed or added.
 
-## 00-auth/ — NOT YET DESIGNED
+## 00-auth/ — Login, Logout and Forgot password flow
 
-Login/sign-in, forgot/reset password, logout. No existing screen to model
-from anywhere else in the pack. Being designed separately (Claude Design)
-before mobile Epic 1 builds against it. No sign-up screen needed — accounts
-are provisioned manually (Option A, admin portal deferred).
+| Screen file | Notes |
+|---|---|
+| login-signin | |
+| login-forgot-password | |
+| login-logout-confirm | |
 
 ## 01-salesperson/ — Order capture flow
 
