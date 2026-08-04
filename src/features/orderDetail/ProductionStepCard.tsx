@@ -35,7 +35,7 @@ export function ProductionStepCard({
   onUpdated: () => void;
 }) {
   const [nameInput, setNameInput] = useState("");
-  const [assignedNames, setAssignedNames] = useState<string[]>(step.assignedNames);
+  const [assignedNames, setAssignedNames] = useState<string[]>(step.assignedNames ?? []);
   const [localPhotoUris, setLocalPhotoUris] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState<"started" | "complete" | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -434,3 +434,37 @@ despite being role-agnostic per contract §9 and design/INDEX.md) — now built:
   supervisor+company_manager user, since their tab set is company_manager's
   and already has what they'd need). Fixed the pre-existing Raw Materials
   Menu-entry check to use the same logic while touching this code.
+
+### Post-Epic-8 device QA (2026-08-04)
+
+First round of testing on a real Android device (EAS dev-client build)
+surfaced two issues:
+
+**Fixed — `ProductionStepCard` crash on assigning a step.** Live backend
+returns `assignedNames: null` for a step nobody has been assigned to yet,
+not `[]`, even though the contract's example JSON for `productionSteps`
+(§4, ~lines 176/499) shows it populated. `useState<string[]>(step.assignedNames)`
+crashed immediately (`Cannot read property 'length' of null`) on mount.
+Guarded with `?? []` — same class of gap as `OutsourcingLineItemRef` in
+Epic 6 (contract example shows the happy-path shape; the empty/fresh-record
+case comes back null instead of an empty array). Worth defensively guarding
+on sight anywhere else a "list" field is read straight off a fresh/empty
+backend record, rather than waiting for the next crash report.
+
+**Fixed (backend) — `POST .../production-plan` wrongly rejected empty
+`steps` for outsource/import.** `MethodChoicePanel` sends `steps: []` for
+`method: "outsource"` / `"import"`, which is correct per §6: those methods
+skip factory steps entirely (the supplier does the work, no in-house steps
+exist), going straight to `WITH_SUPPLIER`; only `factory` gets a step
+checklist. This previously surfaced as "At least one production step is
+required" on submit — the raw backend validation error, not a string that
+exists anywhere in the mobile codebase — because the live API's "at least
+one step" check wasn't scoped to `method: "factory"` the way §6 says it
+should be. Confirmed with the user this was a backend validation bug, not a
+client misunderstanding; **backend fixed and deployed 2026-08-04, contract
+§5 updated to document `steps` as required only for `factory`** — and
+explicitly not "non-factory forbids steps," since a claimed semi-finished
+item re-enters this same endpoint later, still under method `outsource`, to
+plan its remaining factory steps (§6). No client-side workaround was ever
+built for this — the mobile code was already correct; only the backend
+validation was wrong. Nothing to change here.
