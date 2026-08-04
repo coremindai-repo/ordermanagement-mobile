@@ -18,6 +18,7 @@ export function DashboardTabBar<K extends string>({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
       contentContainerStyle={styles.row}
     >
       {tabs.map((tab) => {
@@ -40,6 +41,7 @@ export function DashboardTabBar<K extends string>({
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0, flexShrink: 0 },
   row: { paddingHorizontal: 12, gap: 4, alignItems: "flex-start" },
   tab: {
     alignItems: "center",

@@ -17,6 +17,7 @@ export function FilterChipRow<K extends string>({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
       contentContainerStyle={styles.row}
     >
       {options.map((option) => {
@@ -37,6 +38,7 @@ export function FilterChipRow<K extends string>({
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0, flexShrink: 0 },
   row: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, alignItems: "flex-start" },
   chip: {
     flexDirection: "row",
