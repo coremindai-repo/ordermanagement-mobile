@@ -1,10 +1,43 @@
-   node_modules/
-   .env
-   .env.local
-   ios/Pods/
-   ios/build/
-   android/.gradle/
-   android/app/build/
-   *.log
-   .DS_Store
-   .expo/
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native (managed workflow — these are only ever generated locally via prebuild)
+/ios
+/android
+ios/Pods/
+ios/build/
+android/.gradle/
+android/app/build/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# macOS
+.DS_Store
+*.pem
+
+# env
+.env
+.env.local
+.env*.local
+
+# typescript
+*.tsbuildinfo
