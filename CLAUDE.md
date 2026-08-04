@@ -339,11 +339,26 @@ vocabulary in places.
 `OrderStatusActionPanel` (renamed from the Epic 4 `PostProductionRoutingPanel`)
 is now generic — takes `legalStates` as a prop instead of computing it
 internally, so both `supervisorLegalNextStatuses` and the new
-`managerLegalNextStatuses` (SENT_TO_STORE → RECEIVED_IN_STORE → OUT_FOR_DELIVERY
-→ DELIVERED, contract §3 "Store-side movements through DELIVERED") drive the
-same component. `IN_TRANSIT → SENT_TO_STORE` is deliberately not offered
-anywhere in the manager's UI — no design screen or CLAUDE.md action names a
-manager step for it, so it's treated as covered by the supervisor's dispatch.
+`managerLegalNextStatuses` (IN_TRANSIT → SENT_TO_STORE → RECEIVED_IN_STORE →
+OUT_FOR_DELIVERY → DELIVERED, contract §3 "Store-side movements through
+DELIVERED") drive the same component.
+
+**Fixed (device QA, 2026-08-04) — `IN_TRANSIT → SENT_TO_STORE` was wrongly
+assumed to be "covered by the supervisor's dispatch" and left out of
+`managerLegalNextStatuses` entirely.** It isn't covered by anything: the
+supervisor's last legal move (`supervisorLegalNextStatuses`) is `IN_TRANSIT`,
+and nothing else in the app ever transitioned an order to `SENT_TO_STORE` —
+every dispatched order was permanently stuck with no next action on either
+the supervisor or store-manager side (visible on the manager dashboard as an
+order sitting in Awaiting Delivery / Sent to Store with no action button).
+This section's own wireframe reference already named the missing action —
+§4's "Item logistics — Received in Store, Out for Delivery, Delivered,
+**Arrived in Store**" lists four status updates, not three — it was simply
+never wired to a status. Added `IN_TRANSIT → SENT_TO_STORE` labeled "Arrived
+in Store" (dashboard-card phrasing, matching the existing "Mark Delivered"
+style), and corrected `RECEIVED_IN_STORE`'s dashboard-card label from
+"Arrived in Store" (which had been sitting on the wrong status) to "Received
+in Store".
 
 **Raw materials "Sent to Factory" tab — resolved, dropped.** The mockup
 showed a 5th tab after "Received in Store," but the documented chain
@@ -468,3 +483,50 @@ item re-enters this same endpoint later, still under method `outsource`, to
 plan its remaining factory steps (§6). No client-side workaround was ever
 built for this — the mobile code was already correct; only the backend
 validation was wrong. Nothing to change here.
+
+### Second round device QA (2026-08-04)
+
+**Fixed — dashboards showed stale data after a mutation on the item screen.**
+`ItemStatusDetailScreen`'s `refetch` only refetched its own `["order",
+orderId]` query. Tab navigators keep other dashboard screens mounted, so the
+factory supervisor's Stages dashboard (`["order-line-items", tab.key]`, one
+query per tab) and every role's orders dashboard (`["orders", "list", mine]`)
+kept showing pre-mutation data — a completed step, a step transition, or an
+order-level routing move didn't move the item to its new tab until the user
+happened to pull-to-refresh that exact tab. This is what surfaced as
+"updates the step to Polishing, doesn't show up in the list" repeating at
+every subsequent step and at production-complete. Fixed by having
+`ItemStatusDetailScreen.refetch` and `ManagerOrdersDashboardScreen`'s
+invoice/logistics action handlers additionally call
+`queryClient.invalidateQueries({ queryKey: [...] })` on `order-line-items`
+and `orders` — same pattern already used in `CreateOrderScreen` after
+order submission. Not a reversal of the "no background polling" rule (§2):
+this only invalidates on the *user's own* mutation, same screen-of-origin
+reasoning as the existing precedent, not a timer or a push handler.
+
+**Fixed — an order dispatched to a store had no next action anywhere.**
+`managerLegalNextStatuses` had no case for `IN_TRANSIT`, so an order the
+supervisor moved to `IN_TRANSIT` (their last legal move — see
+`supervisorLegalNextStatuses`) was permanently stuck: nothing in the app ever
+set `SENT_TO_STORE`. This is what surfaced as "supervisor chooses send to
+[store], no further steps to take" and, from the store manager's side, an
+order visible in Awaiting Delivery / Sent to Store with no action button.
+The Epic 5 note rationalizing this as "covered by the supervisor's dispatch"
+was wrong — never confirmed against the design, and the design actually
+named the missing action: §4's Store Manager "Item logistics" wireframe
+lists **four** status updates (Received in Store, Out for Delivery,
+Delivered, **Arrived in Store**), and only three were wired. Added
+`IN_TRANSIT → SENT_TO_STORE` labeled "Arrived in Store"; see
+`orderStatusGraph.ts` and the Epic 5 section above for detail.
+
+**Not a bug — stock orders never reach `READY_TO_INVOICE`.** The order used
+to test the routing flow above never appeared in the store manager's "Ready
+to Invoice" tab; per contract §4's status graph, invoicing is
+customer-order-only — "A stock order can never reach `READY_TO_INVOICE` or
+`READY_TO_DELIVER`," `409 ILLEGAL_TRANSITION` if attempted. `MethodChoicePanel`
+never even offers a stock order's supervisor `READY_TO_INVOICE` as an option
+(`supervisorLegalNextStatuses`'s `IN_PRODUCTION` case is gated on
+`orderType`). If the intent was to test invoicing, retest against a customer
+order — a stock order (or one claimed against existing stock) will never
+show up there by design, not because of a bug. Worth confirming which order
+type was actually used before assuming there's more to fix here.

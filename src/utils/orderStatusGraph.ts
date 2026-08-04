@@ -33,13 +33,21 @@ export function supervisorLegalNextStatuses(
  * The moves store_manager/company_manager are permitted to make once an order has
  * reached the store — contract §3's "Store-side movements through DELIVERED". Confirmed
  * order-level, not line-item (2026-08-04 backend cross-check of both the order-status
- * table and destination-store note, contract §4). `IN_TRANSIT → SENT_TO_STORE` is
- * deliberately not offered here — no design screen or CLAUDE.md action names a manager
- * step for it, so it's treated as covered by the supervisor's dispatch rather than a
- * separate confirmation.
+ * table and destination-store note, contract §4).
+ *
+ * `IN_TRANSIT → SENT_TO_STORE` **is** offered here — reversing an earlier assumption
+ * that the supervisor's dispatch covered it. It doesn't: the supervisor's last legal
+ * move is `IN_TRANSIT` (orderStatusGraph's own `supervisorLegalNextStatuses`), and
+ * nothing else in the app ever set `SENT_TO_STORE`, stranding every dispatched order
+ * with no next action on either side. CLAUDE.md's Store Manager wireframe (§4, "Item
+ * logistics") already named the missing action — "Arrived in Store" — as a fourth
+ * status update alongside Received in Store / Out for Delivery / Delivered; it was
+ * simply never wired to a status.
  */
 export function managerLegalNextStatuses(currentStatus: string): OrderStatus[] {
   switch (currentStatus) {
+    case "IN_TRANSIT":
+      return ["SENT_TO_STORE"];
     case "SENT_TO_STORE":
       return ["RECEIVED_IN_STORE"];
     case "RECEIVED_IN_STORE":
@@ -52,7 +60,8 @@ export function managerLegalNextStatuses(currentStatus: string): OrderStatus[] {
 }
 
 const MANAGER_LOGISTICS_ACTION_LABELS: Partial<Record<OrderStatus, string>> = {
-  RECEIVED_IN_STORE: "Arrived in Store",
+  SENT_TO_STORE: "Arrived in Store",
+  RECEIVED_IN_STORE: "Received in Store",
   OUT_FOR_DELIVERY: "Out for Delivery",
   DELIVERED: "Mark Delivered",
 };

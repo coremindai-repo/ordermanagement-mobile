@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getOrder } from "../../api/orders";
 import { ApiError } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
@@ -25,6 +25,7 @@ export function ItemStatusDetailScreen({
 }: OrdersScreenProps<"ItemStatusDetail">) {
   const { orderId, lineItemId } = route.params;
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["order", orderId], queryFn: () => getOrder(orderId) });
   const [chooseStepVisible, setChooseStepVisible] = useState(false);
   const [completeVisible, setCompleteVisible] = useState(false);
@@ -56,7 +57,17 @@ export function ItemStatusDetailScreen({
     );
   }
 
-  const refetch = () => query.refetch();
+  // Every mutation on this screen (plan/step/transition) changes a line item's or
+  // order's status, which several other already-mounted screens have cached under a
+  // different query key — the factory supervisor's Stages dashboard tabs
+  // (`order-line-items`) and every role's orders dashboard (`orders`). Tab navigators
+  // keep those screens mounted, so without this they'd keep showing pre-mutation data
+  // until the user thought to pull-to-refresh a specific tab themselves.
+  const refetch = () => {
+    query.refetch();
+    queryClient.invalidateQueries({ queryKey: ["order-line-items"] });
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+  };
 
   const completedSteps = item.productionSteps.filter((s) => s.status === "complete");
   const activeStep = item.productionSteps.find(

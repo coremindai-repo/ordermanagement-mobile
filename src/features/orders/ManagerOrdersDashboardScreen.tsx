@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { View } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useOrdersList } from "./useOrdersList";
 import { AWAITING_DELIVERY_STATUSES, SENT_TO_STORE_STATUSES, IN_PROGRESS_STATUSES } from "./statusGroups";
 import { OrdersDashboardLayout } from "./OrdersDashboardLayout";
@@ -28,6 +29,11 @@ export function ManagerOrdersDashboardScreen({
   canCreateOrders,
 }: OrdersScreenProps<"OrdersDashboard"> & { title: string; canCreateOrders: boolean }) {
   const query = useOrdersList({ mine: false });
+  const queryClient = useQueryClient();
+  // A status change here (invoice generated, logistics moved forward) also affects the
+  // salesperson's own dashboard (`mine: true`) and any other mounted instance of this
+  // one — invalidate the whole `orders` list family, not just this screen's own query.
+  const onOrderChanged = () => queryClient.invalidateQueries({ queryKey: ["orders"] });
   const [activeTab, setActiveTab] = useState<TabKey>("awaitingDelivery");
   const [customSubFilter, setCustomSubFilter] = useState<Set<CustomSubFilter>>(new Set());
   const [sentToStoreFilter, setSentToStoreFilter] = useState<Set<string>>(new Set());
@@ -149,7 +155,7 @@ export function ManagerOrdersDashboardScreen({
           renderExtraAction={
             activeTab === "readyToInvoice"
               ? (order) => (
-                  <GenerateInvoiceButton orderId={order.orderId} onDone={() => query.refetch()} />
+                  <GenerateInvoiceButton orderId={order.orderId} onDone={onOrderChanged} />
                 )
               : activeTab === "awaitingDelivery" || activeTab === "sentToStore"
                 ? (order) => {
@@ -160,7 +166,7 @@ export function ManagerOrdersDashboardScreen({
                         orderId={order.orderId}
                         targetStatus={action.target}
                         label={action.label}
-                        onDone={() => query.refetch()}
+                        onDone={onOrderChanged}
                       />
                     );
                   }
