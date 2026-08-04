@@ -40,7 +40,7 @@ export function DashboardTabBar<K extends string>({
 }
 
 const styles = StyleSheet.create({
-  row: { paddingHorizontal: 12, gap: 4 },
+  row: { paddingHorizontal: 12, gap: 4, alignItems: "flex-start" },
   tab: {
     alignItems: "center",
     paddingVertical: 8,
