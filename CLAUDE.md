@@ -505,28 +505,60 @@ this only invalidates on the *user's own* mutation, same screen-of-origin
 reasoning as the existing precedent, not a timer or a push handler.
 
 **Fixed — an order dispatched to a store had no next action anywhere.**
-`managerLegalNextStatuses` had no case for `IN_TRANSIT`, so an order the
-supervisor moved to `IN_TRANSIT` (their last legal move — see
-`supervisorLegalNextStatuses`) was permanently stuck: nothing in the app ever
-set `SENT_TO_STORE`. This is what surfaced as "supervisor chooses send to
-[store], no further steps to take" and, from the store manager's side, an
-order visible in Awaiting Delivery / Sent to Store with no action button.
-The Epic 5 note rationalizing this as "covered by the supervisor's dispatch"
-was wrong — never confirmed against the design, and the design actually
-named the missing action: §4's Store Manager "Item logistics" wireframe
-lists **four** status updates (Received in Store, Out for Delivery,
-Delivered, **Arrived in Store**), and only three were wired. Added
-`IN_TRANSIT → SENT_TO_STORE` labeled "Arrived in Store"; see
-`orderStatusGraph.ts` and the Epic 5 section above for detail.
+`managerLegalNextStatuses` had no case for `IN_TRANSIT`, so an order that
+ever reaches `IN_TRANSIT` (the supervisor's last legal move — see
+`supervisorLegalNextStatuses`) would be permanently stuck there: nothing in
+the app ever set `SENT_TO_STORE`. The Epic 5 note rationalizing this as
+"covered by the supervisor's dispatch" was wrong — never confirmed against
+the design, and the design actually named the missing action: §4's Store
+Manager "Item logistics" wireframe lists **four** status updates (Received
+in Store, Out for Delivery, Delivered, **Arrived in Store**), and only three
+were wired. Added `IN_TRANSIT → SENT_TO_STORE` labeled "Arrived in Store";
+see `orderStatusGraph.ts` and the Epic 5 section above for detail. This fix
+is real but turned out **not** to be what the screenshots below actually
+show — that order never got anywhere near `IN_TRANSIT`.
 
-**Not a bug — stock orders never reach `READY_TO_INVOICE`.** The order used
-to test the routing flow above never appeared in the store manager's "Ready
-to Invoice" tab; per contract §4's status graph, invoicing is
-customer-order-only — "A stock order can never reach `READY_TO_INVOICE` or
-`READY_TO_DELIVER`," `409 ILLEGAL_TRANSITION` if attempted. `MethodChoicePanel`
-never even offers a stock order's supervisor `READY_TO_INVOICE` as an option
-(`supervisorLegalNextStatuses`'s `IN_PRODUCTION` case is gated on
-`orderType`). If the intent was to test invoicing, retest against a customer
-order — a stock order (or one claimed against existing stock) will never
-show up there by design, not because of a bug. Worth confirming which order
-type was actually used before assuming there's more to fix here.
+**Resolved (backend, 2026-08-04) — nothing in the app (or, at the time, the
+backend) ever moved an order from `NEW` to `IN_PRODUCTION`.** Backend now
+transitions the order automatically on the first `production-plan` call for
+any of its line items (confirmed end-to-end by the user, including no
+duplicate transition on a re-plan — relevant since `MethodChoicePanel` is
+also used for the outsource semi-finished re-entry case, §6, which calls
+`production-plan` again on an order already well past `NEW`). No client
+change was needed: `supervisorLegalNextStatuses`/`managerLegalNextStatuses`
+were already written to key off `currentStatus` generically and handle
+`IN_PRODUCTION` correctly once the backend actually sets it — same shape as
+the outsource/import `steps` fix above, a backend-only gap the mobile side
+was already correct against. Original flag, for context: Screenshots from this
+round (`screenshots/finished-whatnext-*.jpeg`) show a customer order
+(`CUS-STUB297095`, method `factory`) whose one line item completed every
+production step through `FINISHED` — but the *order's* `currentStatus`,
+shown on both the order-detail header and driving `OrderStatusActionPanel`
+on the item screen, is still `NEW`. Since `supervisorLegalNextStatuses`
+(correctly) returns `[]` for any status it doesn't recognise, and `NEW` was
+never one of its cases, the supervisor sees no panel at all once the item
+finishes — not "send to store", nothing. That is the real explanation for
+"no further steps to take, invoicing not done": the order never reached
+`IN_PRODUCTION` in the first place, so it's nowhere near ready to invoice,
+and the store manager correctly sees no invoice request because there
+genuinely isn't one yet.
+
+No client code anywhere calls a transition targeting `IN_PRODUCTION` — grep
+confirms it. The contract is self-contradictory on who's supposed to:
+§4 says `POST /api/orders` "sets initial status per the client's process
+template (`NEW`)", and CLAUDE.md's own Epic 3 dashboard mapping treats `NEW`
+as a distinct, separately-filterable, presumably-durable state (Store/Company
+Manager's Custom Orders tab has a dedicated "New" sub-filter chip, which
+would be pointless if orders never stayed there) — both implying `NEW` is a
+real waiting state, not a same-tick pass-through. But §3's role-gating table
+has a row reading "Create an order (`NEW → IN_PRODUCTION`) | salesperson,
+company_manager", which reads like the transition is bundled into order
+creation itself, and — even taken at face value — gates it to salesperson/
+company_manager, **not** `factory_supervisor`, so there's no legal way for
+the factory supervisor's own screens to trigger it even if the app added the
+call. Not building a guess here: possible readings include "the backend
+should auto-transition on the first production-plan call, and doesn't" or
+"some other unbuilt salesperson/company_manager screen is supposed to fire
+this explicitly." Needs a backend-team answer before anything is built —
+same category as the Epic 6 `outsourcing-requests` gaps, not a client bug to
+paper over with a client-side transition call.
